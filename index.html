@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>西鐵小巴 - 多方式登入</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; }
+        body { background: #0f0f0f; color: #fff; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { max-width: 400px; width: 100%; }
+        .logo { text-align: center; margin-bottom: 30px; }
+        .logo h1 { color: #fc0; font-size: 32px; font-weight: 800; }
+        .logo p { color: #888; font-size: 14px; margin-top: 4px; }
+        .card { background: #1c1c1e; border-radius: 16px; padding: 24px; border: 1px solid #2a2a2a; }
+        .card h2 { color: #fff; font-size: 20px; margin-bottom: 6px; }
+        .card .sub { color: #888; font-size: 14px; margin-bottom: 20px; }
+        .btn {
+            width: 100%; padding: 16px; border: none; border-radius: 12px;
+            font-size: 18px; font-weight: 700; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-bottom: 10px; transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.7; }
+        .btn-google { background: #fff; color: #000; }
+        .btn-email { background: #0a84ff; color: #fff; }
+        .btn-phone { background: #30d158; color: #000; }
+        .btn-grey { background: #3a3a3c; color: #fff; }
+        .divider { text-align: center; color: #555; font-size: 13px; margin: 12px 0; position: relative; }
+        .divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: #333; }
+        .divider::before { left: 0; }
+        .divider::after { right: 0; }
+        .input-group { margin-bottom: 12px; }
+        .input-group input {
+            width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #333;
+            background: #2c2c2e; color: #fff; font-size: 16px;
+        }
+        .input-group input:focus { outline: none; border-color: #fc0; }
+        .input-group .row { display: flex; gap: 10px; }
+        .input-group .row input { flex: 1; }
+        .input-group .row button { flex-shrink: 0; padding: 14px 20px; border: none; border-radius: 10px; background: #fc0; color: #000; font-weight: 700; cursor: pointer; }
+        .status { font-size: 14px; color: #aaa; margin-top: 8px; min-height: 20px; }
+        .status.success { color: #30d158; }
+        .status.error { color: #ff453a; }
+        .hidden { display: none !important; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #2c2c2e; color: #fff; padding: 12px 24px; border-radius: 30px; font-size: 15px; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; border: 1px solid #444; max-width: 90%; }
+        .toast.show { opacity: 1; }
+        .user-info { background: #1c1c1e; border-radius: 12px; padding: 16px; margin-top: 16px; border: 1px solid #2a2a2a; display: none; }
+        .user-info.show { display: block; }
+        .user-info .email { color: #aaa; font-size: 14px; word-break: break-all; }
+        .user-info .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 4px; }
+        .badge-admin { background: #fc0; color: #000; }
+        .badge-driver { background: #ff453a; color: #fff; }
+        .badge-passenger { background: #0a84ff; color: #fff; }
+        .logout-btn { background: none; border: 1px solid #555; color: #888; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 8px; }
+        .logout-btn:hover { border-color: #ff453a; color: #ff453a; }
+        .flex { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Logo -->
+    <div class="logo">
+        <h1>🚐 西鐵小巴</h1>
+        <p>選擇登入方式</p>
+    </div>
+
+    <!-- ===== 登入 Card ===== -->
+    <div class="card" id="loginCard">
+        <h2>🔐 登入</h2>
+        <div class="sub">揀你鍾意嘅方式登入</div>
+
+        <!-- Google 登入 -->
+        <button class="btn btn-google" id="btnGoogle">
+            <span style="font-size:20px;">🅶</span> 用 Google 帳戶登入
+        </button>
+
+        <div class="divider">或</div>
+
+        <!-- 電郵登入 -->
+        <div class="input-group">
+            <input type="email" id="emailInput" placeholder="輸入電郵地址">
+            <button class="btn btn-email" id="btnEmail">📧 發送登入連結</button>
+            <div class="status" id="emailStatus"></div>
+        </div>
+
+        <div class="divider">或</div>
+
+        <!-- 手機登入 -->
+        <div class="input-group">
+            <div class="row">
+                <input type="tel" id="phoneInput" placeholder="電話號碼 (e.g. 91234567)">
+                <button id="btnPhoneSend">發送驗證碼</button>
+            </div>
+            <div id="phoneCodeGroup" class="hidden" style="margin-top:8px;">
+                <div class="row">
+                    <input type="text" id="phoneCodeInput" placeholder="輸入驗證碼" maxlength="6">
+                    <button id="btnPhoneVerify">確認</button>
+                </div>
+            </div>
+            <div class="status" id="phoneStatus"></div>
+        </div>
+
+        <div style="margin-top:12px; text-align:center; color:#555; font-size:13px;">
+            👀 訪客可 <span id="skipLogin" style="color:#0a84ff; cursor:pointer;">繼續瀏覽</span>（唔登入）
+        </div>
+    </div>
+
+    <!-- ===== 用戶資訊 ===== -->
+    <div class="user-info" id="userInfo">
+        <div class="flex">
+            <div>
+                <div style="font-weight:700;" id="userDisplayName">用戶</div>
+                <div class="email" id="userEmail">email@example.com</div>
+                <span class="badge" id="userBadge">乘客</span>
+            </div>
+            <button class="logout-btn" id="logoutBtn">🚪 登出</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  西鐵小巴 - 三合一登入版
+//  Google / 電郵 / 手機 三種方式
+// ============================================================
+
+console.log('🔵 西鐵小巴 三合一登入版 開始載入...');
+
+// ---------- Firebase 設定 ----------
+const firebaseConfig = {
+    apiKey: "AIzaSyCnToMYsM7pIGeGHLt5xFbQfT5RAIWzTQA",
+    authDomain: "van-v9-41439.firebaseapp.com",
+    databaseURL: "https://van-v9-41439-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "van-v9-41439",
+    storageBucket: "van-v9-41439.firebasestorage.app",
+    messagingSenderId: "434506286219",
+    appId: "1:434506286219:web:00a57d319da5c6cc4fc08e"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+// ---------- 全域 ----------
+let currentUser = { uid: null, email: null, role: 'passenger' };
+let phoneVerificationId = null;
+
+// ---------- DOM ----------
+const loginCard = document.getElementById('loginCard');
+const userInfo = document.getElementById('userInfo');
+const userDisplayName = document.getElementById('userDisplayName');
+const userEmail = document.getElementById('userEmail');
+const userBadge = document.getElementById('userBadge');
+const logoutBtn = document.getElementById('logoutBtn');
+const skipLogin = document.getElementById('skipLogin');
+
+const btnGoogle = document.getElementById('btnGoogle');
+const emailInput = document.getElementById('emailInput');
+const btnEmail = document.getElementById('btnEmail');
+const emailStatus = document.getElementById('emailStatus');
+
+const phoneInput = document.getElementById('phoneInput');
+const btnPhoneSend = document.getElementById('btnPhoneSend');
+const phoneCodeGroup = document.getElementById('phoneCodeGroup');
+const phoneCodeInput = document.getElementById('phoneCodeInput');
+const btnPhoneVerify = document.getElementById('btnPhoneVerify');
+const phoneStatus = document.getElementById('phoneStatus');
+
+const toast = document.getElementById('toast');
+
+// ---------- Toast ----------
+let toastTimer = null;
+function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ---------- 更新 UI ----------
+function updateUI(user) {
+    if (user && user.uid) {
+        loginCard.style.display = 'none';
+        userInfo.classList.add('show');
+        userDisplayName.textContent = user.displayName || user.email || '用戶';
+        userEmail.textContent = user.email || '無電郵';
+        const role = currentUser.role || 'passenger';
+        userBadge.textContent = role === 'admin' ? '👑 管理員' : role === 'driver' ? '🚐 司機' : '🧍 乘客';
+        userBadge.className = 'badge ' + (role === 'admin' ? 'badge-admin' : role === 'driver' ? 'badge-driver' : 'badge-passenger');
+    } else {
+        loginCard.style.display = 'block';
+        userInfo.classList.remove('show');
+    }
+}
+
+// ---------- 檢查管理員 ----------
+async function checkRole(uid, email) {
+    let role = 'passenger';
+    try {
+        const snap = await db.ref('admins').once('value');
+        snap.forEach(child => {
+            if (child.val().uid === uid || child.val().email === email) {
+                role = 'admin';
+            }
+        });
+    } catch(e) { console.warn('檢查管理員失敗:', e); }
+    return role;
+}
+
+// ---------- 記錄登入 ----------
+async function recordLogin(uid, email, role) {
+    try {
+        const ip = await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip).catch(() => 'unknown');
+        await db.ref('login_logs').push({
+            uid: uid,
+            email: email,
+            role: role,
+            ip: ip,
+            loginTime: Date.now()
+        });
+        console.log('✅ 已記錄登入');
+    } catch(e) { console.warn('記錄登入失敗:', e); }
+}
+
+// ============================================================
+//  1. Google 登入
+// ============================================================
+btnGoogle.addEventListener('click', function() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider)
+        .then(async (result) => {
+            const user = result.user;
+            const role = await checkRole(user.uid, user.email);
+            currentUser = { uid: user.uid, email: user.email, role: role };
+            await recordLogin(user.uid, user.email, role);
+            await db.ref('users/' + user.uid).set({
+                email: user.email,
+                displayName: user.displayName || '',
+                role: role,
+                lastLogin: Date.now()
+            });
+            updateUI(user);
+            showToast('✅ Google 登入成功');
+        })
+        .catch(err => { console.error(err); showToast('❌ Google 登入失敗: ' + err.message); });
+});
+
+// ============================================================
+//  2. 電郵登入（無密碼）
+// ============================================================
+if (auth.isSignInWithEmailLink(window.location.href)) {
+    let email = localStorage.getItem('emailForSignIn');
+    if (!email) email = window.prompt('請輸入你嘅電郵地址');
+    if (email) {
+        auth.signInWithEmailLink(email, window.location.href)
+            .then(async (result) => {
+                const user = result.user;
+                localStorage.removeItem('emailForSignIn');
+                window.history.pushState({}, document.title, window.location.pathname);
+                const role = await checkRole(user.uid, user.email);
+                currentUser = { uid: user.uid, email: user.email, role: role };
+                await recordLogin(user.uid, user.email, role);
+                await db.ref('users/' + user.uid).set({
+                    email: user.email,
+                    role: role,
+                    lastLogin: Date.now()
+                });
+                updateUI(user);
+                showToast('✅ 電郵登入成功');
+            })
+            .catch(err => { console.error(err); showToast('❌ 電郵登入失敗: ' + err.message); });
+    }
+}
+
+btnEmail.addEventListener('click', function() {
+    const email = emailInput.value.trim();
+    if (!email || !email.includes('@')) {
+        emailStatus.textContent = '⚠️ 請輸入有效電郵';
+        emailStatus.className = 'status error';
+        return;
+    }
+    emailStatus.textContent = '⏳ 發送中...';
+    emailStatus.className = 'status';
+    btnEmail.disabled = true;
+    const actionCodeSettings = {
+        url: window.location.href,
+        handleCodeInApp: true
+    };
+    auth.sendSignInLinkToEmail(email, actionCodeSettings)
+        .then(() => {
+            emailStatus.textContent = '✅ 已發送到 ' + email + '，請檢查電郵';
+            emailStatus.className = 'status success';
+            localStorage.setItem('emailForSignIn', email);
+            showToast('📧 已發送登入連結');
+        })
+        .catch(err => {
+            console.error(err);
+            emailStatus.textContent = '❌ 發送失敗: ' + err.message;
+            emailStatus.className = 'status error';
+            showToast('❌ 發送失敗');
+        })
+        .finally(() => { btnEmail.disabled = false; });
+});
+
+// ============================================================
+//  3. 手機登入
+// ============================================================
+btnPhoneSend.addEventListener('click', function() {
+    const phone = phoneInput.value.trim();
+    if (!phone || phone.length < 8) {
+        phoneStatus.textContent = '⚠️ 請輸入有效電話號碼 (8位)';
+        phoneStatus.className = 'status error';
+        return;
+    }
+    const fullPhone = '+852' + phone;
+    phoneStatus.textContent = '⏳ 發送驗證碼...';
+    phoneStatus.className = 'status';
+    btnPhoneSend.disabled = true;
+    const appVerifier = new firebase.auth.RecaptchaVerifier('btnPhoneSend', {
+        size: 'invisible',
+        callback: () => {}
+    });
+    auth.signInWithPhoneNumber(fullPhone, appVerifier)
+        .then((confirmationResult) => {
+            phoneVerificationId = confirmationResult.verificationId;
+            phoneStatus.textContent = '✅ 驗證碼已發送，請輸入';
+            phoneStatus.className = 'status success';
+            phoneCodeGroup.classList.remove('hidden');
+            showToast('📱 驗證碼已發送');
+            btnPhoneSend.disabled = false;
+        })
+        .catch(err => {
+            console.error(err);
+            phoneStatus.textContent = '❌ 發送失敗: ' + err.message;
+            phoneStatus.className = 'status error';
+            showToast('❌ 發送驗證碼失敗');
+            btnPhoneSend.disabled = false;
+        });
+});
+
+btnPhoneVerify.addEventListener('click', function() {
+    const code = phoneCodeInput.value.trim();
+    if (!code) {
+        phoneStatus.textContent = '⚠️ 請輸入驗證碼';
+        phoneStatus.className = 'status error';
+        return;
+    }
+    phoneStatus.textContent = '⏳ 驗證中...';
+    phoneStatus.className = 'status';
+    const credential = firebase.auth.PhoneAuthProvider.credential(phoneVerificationId, code);
+    auth.signInWithCredential(credential)
+        .then(async (result) => {
+            const user = result.user;
+            const role = await checkRole(user.uid, user.email || user.phoneNumber);
+            currentUser = { uid: user.uid, email: user.phoneNumber || '', role: role };
+            await recordLogin(user.uid, user.phoneNumber || '', role);
+            await db.ref('users/' + user.uid).set({
+                phone: user.phoneNumber || '',
+                role: role,
+                lastLogin: Date.now()
+            });
+            phoneStatus.textContent = '✅ 登入成功';
+            phoneStatus.className = 'status success';
+            updateUI(user);
+            showToast('✅ 手機登入成功');
+            phoneCodeGroup.classList.add('hidden');
+            phoneCodeInput.value = '';
+        })
+        .catch(err => {
+            console.error(err);
+            phoneStatus.textContent = '❌ 驗證失敗: ' + err.message;
+            phoneStatus.className = 'status error';
+            showToast('❌ 驗證碼錯誤');
+        });
+});
+
+// ============================================================
+//  登出
+// ============================================================
+logoutBtn.addEventListener('click', function() {
+    auth.signOut().catch(() => {});
+    currentUser = { uid: null, email: null, role: 'passenger' };
+    updateUI(null);
+    showToast('已登出');
+});
+
+// ============================================================
+//  訪客模式（跳過登入）
+// ============================================================
+skipLogin.addEventListener('click', function() {
+    loginCard.style.display = 'none';
+    userInfo.classList.add('show');
+    userDisplayName.textContent = '👀 訪客';
+    userEmail.textContent = '未登入';
+    userBadge.textContent = '👀 訪客';
+    userBadge.className = 'badge badge-passenger';
+    showToast('👀 訪客模式，只可睇車');
+});
+
+// ============================================================
+//  監聽登入狀態
+// ============================================================
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        if (!currentUser.uid) {
+            try {
+                const snap = await db.ref('users/' + user.uid).once('value');
+                const data = snap.val();
+                if (data) {
+                    currentUser = { uid: user.uid, email: data.email || user.email || '', role: data.role || 'passenger' };
+                } else {
+                    const role = await checkRole(user.uid, user.email);
+                    currentUser = { uid: user.uid, email: user.email || '', role: role };
+                }
+                updateUI(user);
+            } catch(e) { console.warn('讀取用戶失敗:', e); }
+        }
+    } else {
+        // 如果之前係訪客模式，唔會彈返登入畫面
+        if (loginCard.style.display !== 'none') {
+            // 正常情況
+        }
+    }
+});
+
+// ============================================================
+//  初始化
+// ============================================================
+if (auth.currentUser) {
+    // 由 onAuthStateChanged 處理
+} else {
+    // 未登入，顯示登入畫面
+    updateUI(null);
+}
+
+console.log('✅ 三合一登入版已啟動');
+console.log('   - Google 登入');
+console.log('   - 電郵登入（無密碼）');
+console.log('   - 手機登入（驗證碼）');
+</script>
+</body>
+</html>
